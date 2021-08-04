@@ -1,0 +1,88 @@
+Concurrency in Go:
+ - Comes with its own scheduler, isn't delegated directly to the OS (+ threads and CPU)
+ - Doesn't utilize a single thread for a single concurrent operation- more effective use of OS threads
+ - Rather than several MB, each goroutine takes up to 4kb memory (excluding storage). Can spawn 1000 goroutines
+ - Builtin support for concurrency (No need to import an SDK e.g. for threads, just call go func())
+ - Language features for concurrency:
+    - data types: chan, mutex
+    - language constructs: go, select, range
+    - Packages: sync, atomic
+
+ - go func(): Notifies the scheduler to execute when it becomes free - it's completely asynchronous (when its turn comes)
+ - go invocation order is non-deterministic. You cannot the order in which they're executed
+ - The time to execute a go routine is also non-deterministic
+ - There are ways to orchestrate go routines to guarantee order
+ - TIL: Waitgroups don't guarantee order by themselves (unless you explicitly call wg.Wait() between go routines)
+ - Waitgroups: Communicate by sharing memory
+ - Channels: Share memory by communicating
+
+ Unbuffered channels:
+  - A read operation needs to be initiated in order to write.
+  - The write operation will block until the read is detected
+  - If you try to place a mutex before a read is detected, you'll hit a deadlock and the main routine will panic
+  - You can do something like result := <- resultCh + <- resultCh, this will block until we receive twice on the same channel
+
+ Buffered channels:
+  - A write can be performed without a read operation initiated
+
+Profiling:
+
+    Benchmarking tools:
+    - ab
+    - go-wrk
+
+    go test ./... -bench=.
+    go test ./... -bench=. -benchmem (benchmark with memory)
+    go test ./... -bench=. -benchmem -cpuprofile profile.cpu (create a profile with the name profile.cpu with the binary as well)
+    // The above command will automatically generate a binary called profiling-app.test.
+
+    Now use pprof:
+
+    go tool pprof profiling-app.test prof.cpu
+    (pprof) top10 -cum // top 10 function calls taken in the the execution
+    (pprof) list profiling-app.GenerateNos // Line by line breakdown of what takes the most time
+        - first # is the amount of time to execute the function stack call
+        - second # is the time taken on the function calls in the line.
+        - first + second is the time taken for the call + the actual time that the function took
+
+    Memory model for golang slices: https://research.swtch.com/godata
+
+    pprof UI:
+        go test ./... -http=":<PORT NUMBER>" -bench=. -benchmem -cpuprofile profile.cpu
+
+    To benchmark http, use:
+
+    import (
+        "net/http"
+        _ "net/http/pprof"
+    )
+
+    // Your HTTP server code here.
+
+    You can then check endpoint in pprof using (localhost:<port>/debug/pprof)
+
+   Garbage collection:
+   - GC Collect
+   - GC Mark
+   - GC Sweep
+
+   GC has to suspend all goroutines to perform collection, and so this can create performance problems if
+   your heap isn't utilized correctly.
+
+   Use go-wrk to load test your service: go get -u github.com/adjust/go-wrk:
+   - go-wrk -d 500 http://localhost:1234 (bombard for 500 seconds)
+
+   Tracing:
+   - import runtime/trace
+
+   Use :
+    trace.Start(sum.trace) (can be stdout or a file)
+    defer trace.Stop()
+
+   Build your binary, run it, and then run it, and then call
+   go tool trace sum.trace (the last argument is generated after running the binary)
+
+Observability
+- opentelemetry.io (framework)
+- hotrod (log collection)
+- jaeger (UI + backend for log processing, built on opentelemetry standards, uber/jaeger-lib)
